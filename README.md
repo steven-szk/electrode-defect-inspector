@@ -1,4 +1,4 @@
-# JetVisionModel
+# Coincell Electrode Defect Inspector
 
 Lab tool for inspecting lithium-ion battery electrodes for defects **before coin-cell assembly**, running on a **Jetson Orin Nano Super**.
 A USB camera captures the electrode, five U-Net segmentation models (ONNX, CUDA) find defects, and the
@@ -398,3 +398,31 @@ for Enter as soon as a keyboard appears.
 - **Service can't find CUDA libs** – uncomment `Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64` in the unit.
 - **Service can't reach keyboard / camera / I2C** – uncomment `SupplementaryGroups=...` in the unit.
 - **Need the 40-pin header reconfigured** (e.g. SPI) – see [Enable GPIO](#enable-gpio).
+
+### Renaming the repo / moving the folder
+
+Renaming on GitHub alone is safe: the old URL redirects, and the folder on the Jetson keeps its name.
+If you also rename or move the folder on the Jetson, these hard-code `/home/steven/workspace/JetVisionModel`:
+
+| What | Fix |
+|------|-----|
+| `defectdetect.service` – `WorkingDirectory=` and both paths in `ExecStart=` | edit, then re-install (below) |
+| `.venv/` – venvs store absolute paths, they break when moved | delete and recreate it (see [Setup](#setup-jetson)) |
+| This README – `cd ~/workspace/JetVisionModel`, the `sudo cp` path | update the text |
+| git remote (only if renamed on GitHub) | `git remote set-url origin https://github.com/steven-szk/<new-name>.git` |
+
+Not affected: `run.sh` / `kill.sh` (`cd` to their own folder), and the Python code. Model paths
+(`inference/`) are relative, so the app must be started from the repo folder – the service's
+`WorkingDirectory` handles that.
+
+```bash
+sudo systemctl stop defectdetect
+mv ~/workspace/JetVisionModel ~/workspace/<new-name>
+cd ~/workspace/<new-name>
+sed -i 's#/home/steven/workspace/JetVisionModel#/home/steven/workspace/<new-name>#g' defectdetect.service
+rm -rf .venv && python3 -m venv --system-site-packages .venv && source .venv/bin/activate && pip install -r requirements.txt
+sudo cp defectdetect.service /etc/systemd/system/defectdetect.service
+sudo systemctl daemon-reload
+sudo systemctl restart defectdetect
+journalctl -u defectdetect -f            # check it started
+```
